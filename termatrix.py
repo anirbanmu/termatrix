@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import time, random, locale, pygame
+import time, random, os, pygame
 from collections import namedtuple
 
 Point = namedtuple('Point', ['x', 'y'])
@@ -20,6 +20,7 @@ class DisplayCharacter(object):
         surface.blit(self.rendered_text, (self.pos.x, self.pos.y + y_offset))
 
     def size(self):
+        assert(self.rendered_text.get_height() == self.font.get_height())
         return Point(self.rendered_text.get_width(), self.rendered_text.get_height())
 
 class MatrixRain(object):
@@ -68,6 +69,8 @@ def find_dimensions(fonts):
     return {f: Point(*f.size(ch)) for f,ch in fonts}
 
 def main_pygame():
+    os.environ['SDL_VIDEODRIVER'] = 'directx'
+
     pygame.init()
 
     display_dim = Point(1280, 720)
@@ -77,10 +80,11 @@ def main_pygame():
     screen = pygame.display.set_mode(display_dim, pygame.DOUBLEBUF)
     clock = pygame.time.Clock()
 
-    font_japanese = pygame.font.SysFont('mikachan', 10)
-    font_english = pygame.font.SysFont('inconsolata', 10)
+    fonts = pygame.font.get_fonts()
+
+    font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 10)
+    font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 10)
     font_dims = find_dimensions([(font_japanese, chr(0x3041)), (font_english, 'D')])
-    print(font_dims[font_japanese])
     matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english)
 
     while True:
@@ -90,7 +94,7 @@ def main_pygame():
         matrix_rain.advance()
         screen.blit(matrix_rain.surface, (0, 0))
         pygame.display.flip()
-        clock.tick(120)
+        clock.tick(240)
 
 if __name__ == '__main__':
     main_pygame()
