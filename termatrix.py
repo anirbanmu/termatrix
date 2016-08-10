@@ -2,6 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 import time, random, os, pygame
+import numpy as np
 from collections import namedtuple
 
 Point = namedtuple('Point', ['x', 'y'])
@@ -37,19 +38,20 @@ class MatrixRain(object):
         self.row_portion = 0
         self.row_height = font_rain.get_height()
 
+    # if previous is an array, it will be reused!
     def generate_row(self, font, char_width, row_width, bg_color, previous = None):
         char_cell_height = font.get_height()
         char_count = int(row_width / char_width)
         char_cell_width = row_width / char_count # leave as float till later
 
-        assert(not previous or len(previous) == char_count)
+        assert(not isinstance(previous, np.ndarray) or len(previous) == char_count)
 
         row_surface = pygame.Surface((row_width, char_cell_height), pygame.HWSURFACE)
 
-        row_color = []
+        row_color = previous if isinstance(previous, np.ndarray) else np.zeros(char_count, dtype=[('r', 'i4'), ('g', 'i4'), ('b', 'i4')])
         for i in range(0, char_count):
             char = chr(random.randrange(0x3041, 0x308F, 0x1)) # Pick a random Hiragana character (U+3040 - U+309F)
-            row_color.append(Color(previous[i].r, previous[i].g - 1 if previous[i].g > 10 else 250, previous[i].b) if previous else Color(0, random.randrange(0, 255, 1), 0))
+            row_color[i] = Color(previous[i]['r'], previous[i]['g'] - 1 if previous[i]['g'] > 10 else 230, previous[i]['b']) if isinstance(previous, np.ndarray) else Color(0, random.randrange(10, 230, 1), 0)
             char_render = font.render(char, True, row_color[i], bg_color)
             row_surface.blit(char_render, (int(char_cell_width * i + (char_cell_width - char_width) / 2), 0))
 
@@ -76,7 +78,7 @@ def main_pygame():
 
     pygame.init()
 
-    display_dim = Point(1280, 720)
+    display_dim = Point(1920, 1080)
     pygame.display.set_caption('termatrix')
     print(pygame.display.get_driver())
     print(pygame.display.Info())
@@ -85,8 +87,8 @@ def main_pygame():
 
     fonts = pygame.font.get_fonts()
 
-    font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 8)
-    font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 8)
+    font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 10)
+    font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 10)
     font_dims = find_dimensions([(font_japanese, chr(0x3041)), (font_english, 'D')])
     matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english)
 
@@ -97,6 +99,7 @@ def main_pygame():
         matrix_rain.advance()
         screen.blit(matrix_rain.surface, (0, 0))
         pygame.display.flip()
+        print(clock.get_fps())
         clock.tick(60)
 
 if __name__ == '__main__':
