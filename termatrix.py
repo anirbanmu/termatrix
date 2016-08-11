@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import time, random, locale, pygame
+import time, random, os, pygame
+import numpy as np
 from collections import namedtuple
 
 Point = namedtuple('Point', ['x', 'y'])
@@ -14,49 +15,80 @@ class DisplayCharacter(object):
         self.fg_color = fg_color
         self.bg_color = bg_color
         self.font = font
+        self.rendered_text = self.font.render(self.char, True, self.fg_color, self.bg_color)
 
-    def render(self, surface):
-        char_text = self.font.render(self.char, True, self.fg_color, self.bg_color)
-        surface.blit(char_text, self.pos)
+    def render(self, surface, y_offset):
+        surface.blit(self.rendered_text, (self.pos.x, self.pos.y + y_offset))
+
+    def size(self):
+        assert(self.rendered_text.get_height() == self.font.get_height())
+        return Point(self.rendered_text.get_width(), self.rendered_text.get_height())
 
 class MatrixRain(object):
     def __init__(self, dimensions, font_widths, font_rain, font_text):
         self.max_dims = Point(max([v.x for v in font_widths.values()]), max([v.y for v in font_widths.values()]))
         self.font_rain = font_rain
-        self.dimensions = Point(int(dimensions.x / self.max_dims.x), int(dimensions.y / self.max_dims.y))
+        self.font_widths = font_widths
         self.pixel_dimensions = dimensions
         self.surface = pygame.Surface(dimensions, pygame.HWSURFACE)
-        self.next_row = []
-        for i in range(0, self.dimensions.x):
-            x_position = self.max_dims.x * i + (self.max_dims.x - font_widths[font_rain].x) / 2
-            self.next_row.append(DisplayCharacter((x_position, 0), chr(random.randrange(0x3041, 0x3085, 0x1)), Color(0, random.randrange(0, 255, 1), 0), Color(0, 0, 0), font_rain))
 
-    # Scroll the whole surface by one row, fill top row with black, render each character & blit them to the top row
+        self.row_colors, self.row_render = self.generate_row(font_rain, font_widths[font_rain].x, self.pixel_dimensions.x, (0, 0, 0))
+
+        # row_portion keeps track of how much of the current row is exposed
+        self.row_portion = 0
+        self.row_height = font_rain.get_height()
+
+    # if previous is an array, it will be reused!
+    def generate_row(self, font, char_width, row_width, bg_color, previous = None):
+        char_cell_height = font.get_height()
+        char_count = int(row_width / char_width)
+        char_cell_width = row_width / char_count # leave as float till later
+
+        assert(not isinstance(previous, np.ndarray) or len(previous) == char_count)
+
+        row_surface = pygame.Surface((row_width, char_cell_height), pygame.HWSURFACE)
+
+        row_color = previous if isinstance(previous, np.ndarray) else np.zeros(char_count, dtype=[('r', 'i4'), ('g', 'i4'), ('b', 'i4')])
+        for i in range(0, char_count):
+            char = chr(random.randrange(0x3041, 0x308F, 0x1)) # Pick a random Hiragana character (U+3040 - U+309F)
+            row_color[i] = Color(previous[i]['r'], previous[i]['g'] - 1 if previous[i]['g'] > 10 else 230, previous[i]['b']) if isinstance(previous, np.ndarray) else Color(0, random.randrange(10, 230, 1), 0)
+            char_render = font.render(char, True, row_color[i], bg_color)
+            row_surface.blit(char_render, (int(char_cell_width * i + (char_cell_width - char_width) / 2), 0))
+
+        return (row_color, row_surface)
+
+    # Scroll the whole surface by one row, render current row at it's new location. Generate the next row if needed.
     def advance(self):
-        self.surface.scroll(0, self.max_dims.y)
-        #self.surface.fill((0, 0, 0), rect=(0, 0, self.pixel_dimensions.x, self.max_dims.y))
-        for i,c in enumerate(self.next_row):
-            c.render(self.surface)
+        advance_size = max(1, int(self.row_height / 5))
+        self.surface.scroll(0, advance_size)
 
-            # Figure out what to draw next time we're called.
-            fg_color = Color(c.fg_color.r, c.fg_color.g - 1 if c.fg_color.g > 10 else 250, c.fg_color.b)
-            self.next_row[i] = DisplayCharacter(c.pos, chr(random.randrange(0x3041, 0x3085, 0x1)), fg_color, c.bg_color, self.font_rain)
+        self.row_portion += advance_size
+        if (self.row_portion > self.row_height):
+            self.surface.blit(self.row_render, (0, self.row_portion - self.row_height))
+            self.row_portion = abs(self.row_height - self.row_portion)
+            self.row_colors, self.row_render = self.generate_row(self.font_rain, self.font_widths[self.font_rain].x, self.pixel_dimensions.x, (0, 0, 0), self.row_colors)
+
+        self.surface.blit(self.row_render, (0, self.row_portion - self.row_height))
 
 def find_dimensions(fonts):
     return {f: Point(*f.size(ch)) for f,ch in fonts}
 
 def main_pygame():
+    os.environ['SDL_VIDEODRIVER'] = 'directx'
+
     pygame.init()
 
-    display_dim = Point(1280, 720)
+    display_dim = Point(1920, 1080)
     pygame.display.set_caption('termatrix')
     print(pygame.display.get_driver())
     print(pygame.display.Info())
     screen = pygame.display.set_mode(display_dim, pygame.DOUBLEBUF)
     clock = pygame.time.Clock()
 
-    font_japanese = pygame.font.SysFont('mikachan', 10)
-    font_english = pygame.font.SysFont('inconsolata', 10)
+    fonts = pygame.font.get_fonts()
+
+    font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 10)
+    font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 10)
     font_dims = find_dimensions([(font_japanese, chr(0x3041)), (font_english, 'D')])
     matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english)
 
@@ -67,6 +99,7 @@ def main_pygame():
         matrix_rain.advance()
         screen.blit(matrix_rain.surface, (0, 0))
         pygame.display.flip()
+        print(clock.get_fps())
         clock.tick(60)
 
 if __name__ == '__main__':
