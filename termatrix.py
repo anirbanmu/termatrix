@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import time, random, os, pygame
+import sys, random, os, pygame
 import numpy as np
 from collections import namedtuple
 
@@ -25,22 +25,24 @@ class DisplayCharacter(object):
         return Point(self.rendered_text.get_width(), self.rendered_text.get_height())
 
 class MatrixRain(object):
-    def __init__(self, dimensions, font_widths, font_rain, font_text):
-        self.max_dims = Point(max([v.x for v in font_widths.values()]), max([v.y for v in font_widths.values()]))
+    def __init__(self, dimensions, font_widths, font_rain, font_text, text_embeds):
+        self.max_dims = Point(max([v.x for v in font_widths.values()]), max([f.get_height() for f in [font_rain, font_text]]))
         self.font_rain = font_rain
+        self.font_text = font_text
+        self.text_embeds = text_embeds
         self.font_widths = font_widths
         self.pixel_dimensions = dimensions
         self.surface = pygame.Surface(dimensions, pygame.HWSURFACE)
 
-        self.row_colors, self.row_render = self.generate_row(font_rain, font_widths[font_rain].x, self.pixel_dimensions.x, (0, 0, 0))
+        self.row_colors, self.row_render = self.generate_row(font_rain, self.max_dims.x, self.max_dims.y, self.pixel_dimensions.x, (0, 0, 0))
 
         # row_portion keeps track of how much of the current row is exposed
         self.row_portion = 0
         self.row_height = font_rain.get_height()
 
     # if previous is an array, it will be reused!
-    def generate_row(self, font, char_width, row_width, bg_color, previous = None):
-        char_cell_height = font.get_height()
+    def generate_row(self, font, char_width, char_height, row_width, bg_color, previous = None):
+        char_cell_height = char_height
         char_count = int(row_width / char_width)
         char_cell_width = row_width / char_count # leave as float till later
 
@@ -51,9 +53,9 @@ class MatrixRain(object):
         row_color = previous if isinstance(previous, np.ndarray) else np.zeros(char_count, dtype=[('r', 'i4'), ('g', 'i4'), ('b', 'i4')])
         for i in range(0, char_count):
             char = chr(random.randrange(0x3041, 0x308F, 0x1)) # Pick a random Hiragana character (U+3040 - U+309F)
-            row_color[i] = Color(previous[i]['r'], previous[i]['g'] - 1 if previous[i]['g'] > 10 else 230, previous[i]['b']) if isinstance(previous, np.ndarray) else Color(0, random.randrange(10, 230, 1), 0)
+            row_color[i] = Color(previous[i]['r'], previous[i]['g'] - 1 if previous[i]['g'] > 10 else 190, previous[i]['b']) if isinstance(previous, np.ndarray) else Color(0, random.randrange(10, 190, 1), 0)
             char_render = font.render(char, True, row_color[i], bg_color)
-            row_surface.blit(char_render, (int(char_cell_width * i + (char_cell_width - char_width) / 2), 0))
+            row_surface.blit(char_render, (int(char_cell_width * i + (char_cell_width - char_render.get_width()) / 2), int((char_cell_height - char_render.get_height()) / 2)))
 
         return (row_color, row_surface)
 
@@ -66,7 +68,7 @@ class MatrixRain(object):
         if (self.row_portion > self.row_height):
             self.surface.blit(self.row_render, (0, self.row_portion - self.row_height))
             self.row_portion = abs(self.row_height - self.row_portion)
-            self.row_colors, self.row_render = self.generate_row(self.font_rain, self.font_widths[self.font_rain].x, self.pixel_dimensions.x, (0, 0, 0), self.row_colors)
+            self.row_colors, self.row_render = self.generate_row(self.font_rain, self.max_dims.x, self.max_dims.y, self.pixel_dimensions.x, (0, 0, 0), self.row_colors)
 
         self.surface.blit(self.row_render, (0, self.row_portion - self.row_height))
 
@@ -90,7 +92,7 @@ def main_pygame():
     font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 10)
     font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 10)
     font_dims = find_dimensions([(font_japanese, chr(0x3041)), (font_english, 'D')])
-    matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english)
+    matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english, sys.argv[1:])
 
     while True:
         for event in pygame.event.get():
