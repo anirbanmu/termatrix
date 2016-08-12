@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import sys, random, os, pygame
+import sys, random, os, pygame, math
 import numpy as np
 from collections import namedtuple
 
@@ -96,6 +96,13 @@ class MatrixRain(object):
 
         self.surface.blit(self.row_render, (0, self.row_portion - self.row_height))
 
+    def advance_multiple(self, ms):
+        start = pygame.time.get_ticks()
+        while pygame.time.get_ticks() - start < ms:
+            self.advance()
+
+        self.last_text_embed = pygame.time.get_ticks()
+
 def find_dimensions(fonts):
     return {f: Point(*f.size(ch)) for f,ch in fonts}
 
@@ -116,13 +123,22 @@ def main_pygame():
     font_japanese = pygame.font.SysFont([f for f in fonts if 'mikachan' in f][0], 10)
     font_english = pygame.font.SysFont([f for f in fonts if 'inconsolata' in f][0], 10)
     font_dims = find_dimensions([(font_japanese, chr(0x3041)), (font_english, 'D')])
-    matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english, sys.argv[1:], 5000)
+    matrix_rain = MatrixRain(display_dim, font_dims, font_japanese, font_english, sys.argv[1:], 1300)
 
+    #matrix_rain.advance_multiple(300)
+
+    start = pygame.time.get_ticks()
+    fade_in = 7000
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 return
         matrix_rain.advance()
+
+        fade_in_factor = (pygame.time.get_ticks() - start) / fade_in
+        base_alpha = 5
+        matrix_rain.surface.set_alpha(255 if fade_in_factor >= 1.0 else min(255, base_alpha + int((255 - base_alpha) * fade_in_factor * fade_in_factor * fade_in_factor * fade_in_factor)))
+
         screen.blit(matrix_rain.surface.convert(), (0, 0))
         pygame.display.flip()
         #print(clock.get_fps())
