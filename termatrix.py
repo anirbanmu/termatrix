@@ -36,7 +36,7 @@ class MatrixRain(object):
 
         # row_portion keeps track of how much of the current row is exposed
         self.row_portion = 0
-        self.row_height = font_rain.get_height()
+        self.row_height = self.max_dims.y
 
         self.last_text_embed = pygame.time.get_ticks()
         self.text_embed_index = -1 if len(text_embeds) == 0 else 0
